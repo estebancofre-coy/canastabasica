@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>¿Cuánto cuesta la canasta básica?</title>
+<style>
+:root{--azul:#003a8c;--verde:#0fb5a0;--claro:#e0f5f2;--gris:#e8ebf4;--txt:#222;--err:#c0392b}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--txt);background:#f6f9fb;line-height:1.4}
+header{background:var(--azul);color:#fff;padding:14px 16px}
+header small{color:#7fe6d8;font-weight:700;letter-spacing:.04em}
+header h1{margin:2px 0 0;font-size:1.3rem}
+main{max-width:760px;margin:0 auto;padding:12px 12px 90px}
+.progress{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #d5e3e0;padding:8px 12px}
+.bar{height:8px;background:var(--gris);border-radius:4px;overflow:hidden}
+.bar div{height:100%;background:var(--verde);width:0;transition:width .3s}
+.progress p{margin:4px 0 0;font-size:.85rem;color:#456}
+.card{background:#fff;border:1px solid #d5e3e0;border-radius:10px;padding:14px;margin:12px 0}
+.note{background:var(--claro);border-left:4px solid var(--verde);padding:10px 12px;border-radius:6px;font-size:.92rem;margin:10px 0}
+.note.blue{background:var(--gris);border-color:var(--azul)}
+h2{color:var(--azul);margin:.2em 0 .4em;font-size:1.25rem}
+label{display:block;font-weight:600;font-size:.9rem;margin:10px 0 3px}
+input,textarea,select{width:100%;padding:10px;border:1px solid #9fb7b3;border-radius:8px;font:inherit;background:#fff}
+input:focus,textarea:focus{outline:2px solid var(--verde)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:520px){.row2{grid-template-columns:1fr}}
+.prod{border:1px solid #cfe3df;border-radius:10px;padding:10px;margin:10px 0;background:#f4fbfa}
+.prod.ok{background:#eafaf2;border-color:#7fd1a8}
+.prod.miss{background:#fff4e5;border-color:#f0c27b}
+.prod .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.prod .name{font-weight:700}
+.prod .qty{font-size:.85rem;color:#456}
+.prod .inputs{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin-top:6px}
+.sub{font-weight:700;color:var(--azul);text-align:right;min-width:90px}
+.chk{display:flex;gap:6px;align-items:center;font-weight:500;font-size:.85rem;margin:0;white-space:nowrap}
+.chk input{width:auto}
+.tot{display:flex;justify-content:space-between;background:#d3f2ee;padding:10px 12px;border-radius:8px;font-weight:700;color:var(--azul);margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:.95rem}
+td,th{padding:7px 6px;border-bottom:1px solid #dbe6e4;text-align:left}
+td.n,th.n{text-align:right}
+tr.big td{font-weight:700;background:#d3f2ee;color:var(--azul)}
+nav.btns{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #cfe0dc;padding:10px;display:flex;gap:10px;justify-content:center}
+button{font:inherit;font-weight:700;border:0;border-radius:8px;padding:11px 20px;cursor:pointer}
+.pri{background:var(--azul);color:#fff}.sec{background:var(--gris);color:var(--azul)}
+.add{background:var(--claro);color:var(--azul);margin-top:6px}
+.rm{background:none;color:var(--err);padding:4px 8px}
+button:disabled{opacity:.5}
+.err{color:var(--err);font-size:.88rem;margin-top:6px}
+.cmp{font-size:1.05rem}
+#toast{position:fixed;left:50%;top:70px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:8px;display:none;z-index:9;max-width:90%}
+#toast.bad{background:var(--err)}
+</style>
+</head>
+<body>
+<header><small>ACTIVIDAD 1 · SALIDA A TERRENO</small><h1>¿Cuánto cuesta la canasta básica?</h1></header>
+<div class="progress"><div class="bar"><div id="bar"></div></div><p id="stepLabel"></p></div>
+<main id="view"></main>
+<nav class="btns"><button class="sec" id="back">Atrás</button><button class="pri" id="next">Siguiente</button></nav>
+<div id="toast"></div>
+
+<script>
+// Pegar aquí la URL /exec del Web App de Apps Script.
+const API_URL = "https://script.google.com/macros/s/AKfycbwQ_6F_RuakoCYo0nAfbCSQI7p2L8dni1PwlqjK-MrG3-641_T9ArgZs-_QSx750FZkGQ/exec";
+const OFFICIAL = 91220;
+const DRAFT_KEY = "canasta_draft_v1";
+
+const CATS = [
+ {id:"pan",name:"1. Pan, cereales y pastas",items:[
+  ["Pan corriente (marraqueta o hallulla)",6,"kg"],["Arroz",1,"kg"],["Harina de trigo",0.7,"kg"],
+  ["Espaguetis",0.5,"kg"],["Otras pastas (corbatas, tallarines, etc.)",0.7,"kg"],["Galletas",1,"paquete"]]},
+ {id:"carnes",name:"2. Carnes, pescados y fiambres",items:[
+  ["Carne de vacuno molida",0.15,"kg"],["Carne de vacuno (posta u otro corte)",0.5,"kg"],["Chuleta de cerdo",0.1,"kg"],
+  ["Pechuga de pollo",0.2,"kg"],["Trutro de pollo",0.5,"kg"],["Jamón u otro fiambre",0.2,"kg"],
+  ["Atún en conserva",1,"lata"],["Jurel en conserva",1,"lata"]]},
+ {id:"lacteos",name:"3. Lácteos, huevos y grasas",items:[
+  ["Leche líquida entera",1,"L"],["Leche semi o descremada",0.35,"L"],["Yogur",4,"unidades"],
+  ["Queso gouda o mantecoso",0.3,"kg"],["Huevos",10,"unidades"],["Aceite vegetal",0.7,"L"],["Mantequilla o margarina",0.2,"kg"]]},
+ {id:"frutas",name:"4. Frutas",items:[
+  ["Plátanos",0.5,"kg"],["Paltas",0.4,"kg"],["Manzanas",0.4,"kg"],["Limones",0.35,"kg"],
+  ["Naranjas",0.25,"kg"],["Fruta de estación (uva, durazno u otra)",0.3,"kg"]]},
+ {id:"verduras",name:"5. Verduras y legumbres",items:[
+  ["Papas",3,"kg"],["Tomates",1,"kg"],["Cebollas",0.7,"kg"],["Zanahorias",0.5,"kg"],["Lechuga",1,"unidad"],
+  ["Zapallo",0.25,"kg"],["Choclo (fresco o congelado)",0.4,"kg"],["Pimentón",1,"unidad"],["Zapallo italiano",1,"unidad"],
+  ["Acelga o brócoli",1,"unidad"],["Ajo",1,"cabeza"],["Porotos secos",0.2,"kg"],["Lentejas",0.1,"kg"]]},
+ {id:"abarrotes",name:"6. Abarrotes y bebidas",items:[
+  ["Azúcar",0.7,"kg"],["Sal",0.2,"kg"],["Salsa de tomate",1,"unidad (200 g)"],["Mayonesa",0.1,"kg"],
+  ["Té",1,"caja (20 bolsitas)"],["Café",1,"frasco (50 g)"],["Agua mineral",2.5,"L"],["Bebida o refresco",2,"L"]]}
+];
+CATS.forEach((c,ci)=>c.items=c.items.map((a,i)=>({id:c.id+"_"+(i+1),name:a[0],qty:a[1],unit:a[2]})));
+
+const QUESTIONS = [
+ "¿Qué categoría de productos fue la más cara? ¿Por qué creen que ocurre?",
+ "Comparen su total por persona con el valor oficial de $91.220. ¿Fue mayor o menor? ¿A qué atribuyen la diferencia?",
+ "¿Qué productos variaban más de precio entre una marca y otra?",
+ "¿Qué recomendaciones le darían a una familia para que su compra mensual le salga más barata?"
+];
+
+// Pasos: 0 intro, 1 datos, 2..7 categorías, 8 reemplazos, 9 resumen, 10 análisis, 11 enviado
+const S_DATA=1, S_CAT0=2, S_REPL=8, S_SUM=9, S_ANA=10, S_DONE=11;
+const fmt = n => "$" + Math.round(n).toLocaleString("es-CL");
+const num = v => { const n = parseFloat(String(v).replace(/\./g,"").replace(",",".")); return isFinite(n)&&n>=0?n:null; };
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+let st = load() || {step:0,id:newId(),group:{m1:"",m2:"",m3:"",m4:"",curso:"",super:"",sector:"",fecha:""},prices:{},missing:{},repl:[{o:"",r:"",p:""}],ana:["","","",""],sent:false};
+
+function newId(){ return "CB-" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2,6).toUpperCase(); }
+function load(){ try{return JSON.parse(localStorage.getItem(DRAFT_KEY));}catch(e){return null;} }
+function save(){ try{localStorage.setItem(DRAFT_KEY,JSON.stringify(st));}catch(e){} }
+function toast(msg,bad){ const t=document.getElementById("toast"); t.textContent=msg; t.className=bad?"bad":""; t.style.display="block"; clearTimeout(toast.t); toast.t=setTimeout(()=>t.style.display="none",3800); }
+
+function itemSub(it){ if(st.missing[it.id]) return 0; const p=num(st.prices[it.id]); return p===null?0:p*it.qty; }
+function catSub(c){ return c.items.reduce((s,it)=>s+itemSub(it),0); }
+function total(){ return CATS.reduce((s,c)=>s+catSub(c),0); }
+function catPending(c){ return c.items.filter(it=>!st.missing[it.id] && num(st.prices[it.id])===null); }
+
+function render(){
+  const v=document.getElementById("view"); const s=st.step;
+  const labels={0:"Inicio",1:"Datos del grupo",8:"Productos reemplazados",9:"Total de la canasta",10:"Preguntas de análisis",11:"Envío"};
+  const label = s>=S_CAT0&&s<S_REPL ? "Categoría "+(s-1)+" de 6: "+CATS[s-S_CAT0].name.slice(3) : labels[s];
+  document.getElementById("stepLabel").textContent = label;
+  document.getElementById("bar").style.width = Math.round(s/S_DONE*100)+"%";
+  const back=document.getElementById("back"), next=document.getElementById("next");
+  back.style.display = (s===0||s===S_DONE)?"none":""; 
+  next.style.display = s===S_DONE?"none":"";
+  next.textContent = s===0?"Comenzar":s===S_ANA?"Enviar respuestas":"Siguiente";
+  next.disabled=false;
+  if(s===0) v.innerHTML = introHtml();
+  else if(s===S_DATA) v.innerHTML = groupHtml();
+  else if(s<S_REPL) { v.innerHTML = catHtml(CATS[s-S_CAT0]); }
+  else if(s===S_REPL) v.innerHTML = replHtml();
+  else if(s===S_SUM) v.innerHTML = sumHtml();
+  else if(s===S_ANA) v.innerHTML = anaHtml();
+  else v.innerHTML = doneHtml();
+  window.scrollTo(0,0);
+}
+
+function introHtml(){ return `<div class="card"><h2>Propósito</h2>
+<p>Averiguar cuánto cuesta realmente la canasta básica en un supermercado de tu ciudad, calculando el gasto mensual en alimentos de una persona y de una familia de cuatro integrantes.</p>
+<ol><li>Trabajen en grupos de 3 o 4. Elijan un supermercado.</li>
+<li>Busquen cada producto. Si hay varias marcas, anoten <b>la más barata</b>.</li>
+<li>Escriban el precio por kilo, litro o unidad; el subtotal se calcula solo (precio × cantidad).</li>
+<li>Si no lo encuentran, márquenlo y regístrenlo como reemplazo si corresponde.</li>
+<li>Revisen el total y respondan las preguntas. <b>Guarden el total:</b> lo usarán en la Actividad 2.</li></ol>
+<div class="note">Ejemplo: si el kilo de pan cuesta $2.300 y la cantidad es 6 kg, el subtotal es 2.300 × 6 = <b>$13.800</b>.</div>
+<div class="note blue">Su avance se guarda en este dispositivo: pueden cerrar la página y retomar después.</div></div>`; }
+
+function groupHtml(){ const g=st.group;
+ const f=(k,l,t="text")=>`<label>${l}</label><input type="${t}" data-g="${k}" value="${esc(g[k])}">`;
+ return `<div class="card"><h2>Datos del grupo</h2>
+ <div class="row2">${f("m1","Integrante 1 *")}${f("m2","Integrante 2 *")}${f("m3","Integrante 3 *")}${f("m4","Integrante 4 (opcional)")}</div>
+ ${f("curso","Curso *")}${f("super","Supermercado visitado *")}${f("sector","Dirección o sector *")}${f("fecha","Fecha y hora de la visita *","datetime-local")}
+ <div class="err" id="err"></div></div>`; }
+
+function catHtml(c){
+ const rows=c.items.map(it=>{ const miss=!!st.missing[it.id]; const p=st.prices[it.id]??""; const ok=!miss&&num(p)!==null;
+  return `<div class="prod ${miss?"miss":ok?"ok":""}" data-id="${it.id}">
+  <div class="top"><div><div class="name">${esc(it.name)}</div><div class="qty">Cantidad: ${String(it.qty).replace(".",",")} ${esc(it.unit)}</div></div>
+  <label class="chk"><input type="checkbox" data-miss="${it.id}" ${miss?"checked":""}> No lo encontré</label></div>
+  <div class="inputs"><div><label>Precio por ${/^(kg|L)$/.test(it.unit)?it.unit:"unidad"} ($)</label>
+  <input inputmode="decimal" placeholder="0" data-p="${it.id}" value="${esc(p)}" ${miss?"disabled":""}></div>
+  <div class="sub" id="s_${it.id}">${miss?"—":fmt(itemSub(it))}</div></div></div>`; }).join("");
+ return `<div class="card"><h2>${esc(c.name)}</h2><div class="note">Anoten la marca más barata. Subtotal = precio × cantidad.</div>${rows}
+ <div class="tot"><span>Subtotal ${esc(c.name.slice(3))}</span><span id="catTot">${fmt(catSub(c))}</span></div><div class="err" id="err"></div></div>`; }
+
+function replHtml(){
+ const missing=CATS.flatMap(c=>c.items.filter(it=>st.missing[it.id]).map(it=>it.name));
+ const rows=st.repl.map((r,i)=>`<div class="prod"><label>Producto original</label><input data-r="${i}" data-k="o" list="miss" value="${esc(r.o)}">
+ <label>Reemplazo (marca y formato)</label><input data-r="${i}" data-k="r" value="${esc(r.r)}">
+ <label>Precio ($)</label><input inputmode="decimal" data-r="${i}" data-k="p" value="${esc(r.p)}">
+ <button class="rm" data-rm="${i}">Quitar</button></div>`).join("");
+ return `<div class="card"><h2>Productos que no encontramos o reemplazamos</h2>
+ <div class="note">${missing.length?"No encontraron: <b>"+missing.map(esc).join(", ")+"</b>.":"No marcaron productos como no encontrados."} Si compraron un sustituto, regístrenlo aquí. Este paso es opcional y no suma al total.</div>
+ <datalist id="miss">${missing.map(m=>`<option value="${esc(m)}">`).join("")}</datalist>${rows}
+ <button class="add" id="addRepl">+ Agregar reemplazo</button></div>`; }
+
+function sumHtml(){
+ const t=total(), fam=t*4, diff=t-OFFICIAL;
+ const rows=CATS.map(c=>`<tr><td>${esc(c.name)}</td><td class="n">${fmt(catSub(c))}</td></tr>`).join("");
+ const pend=CATS.reduce((n,c)=>n+catPending(c).length,0);
+ return `<div class="card"><h2>Total de la canasta</h2>
+ ${pend?`<div class="note" style="border-color:#e67e22;background:#fff4e5">Quedan <b>${pend}</b> productos sin precio ni marca de «no encontrado». Pueden volver con «Atrás».</div>`:""}
+ <table>${rows}<tr class="big"><td>Total canasta para 1 persona (A)</td><td class="n">${fmt(t)}</td></tr>
+ <tr class="big"><td>Total familia de 4 personas (A × 4)</td><td class="n">${fmt(fam)}</td></tr></table>
+ <div class="note cmp">Valor oficial: <b>${fmt(OFFICIAL)}</b> por persona (julio 2026). Su total es <b>${fmt(Math.abs(diff))} ${diff>=0?"mayor":"menor"}</b> (${(t/OFFICIAL*100).toFixed(0)}% del oficial).<br><small>La cifra oficial incluye comidas fuera del hogar, por eso su total puede salir menor.</small></div>
+ <div class="note blue"><b>Guarden el total:</b> lo usarán en la Actividad 2.</div></div>`; }
+
+function anaHtml(){
+ return `<div class="card"><h2>Preguntas de análisis</h2>${QUESTIONS.map((q,i)=>`<label>${i+1}. ${esc(q)}</label><textarea rows="3" data-a="${i}">${esc(st.ana[i])}</textarea>`).join("")}
+ <div class="err" id="err"></div></div>`; }
+
+function doneHtml(){ const t=total();
+ return `<div class="card"><h2>¡Respuestas enviadas!</h2><p>Código de envío: <b>${esc(st.id)}</b></p>
+ <div class="tot"><span>Total por persona (A)</span><span>${fmt(t)}</span></div>
+ <div class="tot"><span>Familia de 4 (A × 4)</span><span>${fmt(t*4)}</span></div>
+ <div class="note blue">Guarden estos valores para la Actividad 2.</div>
+ <button class="sec" id="newForm" style="margin-top:10px">Comenzar un nuevo registro</button></div>`; }
+
+// Eventos delegados
+const view=document.getElementById("view");
+view.addEventListener("input",e=>{
+ const d=e.target.dataset;
+ if(d.g){ st.group[d.g]=e.target.value; }
+ else if(d.p){ st.prices[d.p]=e.target.value; refreshItem(d.p); }
+ else if(d.r!==undefined){ st.repl[+d.r][d.k]=e.target.value; }
+ else if(d.a!==undefined){ st.ana[+d.a]=e.target.value; }
+ save();
+});
+view.addEventListener("change",e=>{
+ const d=e.target.dataset;
+ if(d.miss){ st.missing[d.miss]=e.target.checked; if(e.target.checked) st.prices[d.miss]=""; save(); render(); const el=document.querySelector(`[data-id="${d.miss}"]`); el&&el.scrollIntoView({block:"center"}); }
+});
+view.addEventListener("click",e=>{
+ const d=e.target.dataset;
+ if(e.target.id==="addRepl"){ st.repl.push({o:"",r:"",p:""}); save(); render(); }
+ if(d.rm!==undefined){ st.repl.splice(+d.rm,1); if(!st.repl.length) st.repl.push({o:"",r:"",p:""}); save(); render(); }
+ if(e.target.id==="newForm"){ if(confirm("Se borrará el registro de este dispositivo. ¿Continuar?")){ localStorage.removeItem(DRAFT_KEY); location.reload(); } }
+});
+function refreshItem(id){
+ const c=CATS.find(c=>id.startsWith(c.id+"_")); const it=c.items.find(i=>i.id===id);
+ document.getElementById("s_"+id).textContent=fmt(itemSub(it));
+ document.getElementById("catTot").textContent=fmt(catSub(c));
+ const box=document.querySelector(`[data-id="${id}"]`); box.className="prod"+(num(st.prices[id])!==null?" ok":"");
+}
+
+function validate(){
+ const e=document.getElementById("err"); const fail=m=>{ if(e) e.textContent=m; toast(m,true); return false; };
+ if(st.step===S_DATA){ const g=st.group;
+  if(!g.m1.trim()||!g.m2.trim()||!g.m3.trim()) return fail("Escriban al menos 3 integrantes.");
+  if(!g.curso.trim()||!g.super.trim()||!g.sector.trim()||!g.fecha) return fail("Completen curso, supermercado, sector y fecha de visita."); }
+ if(st.step>=S_CAT0&&st.step<S_REPL){ const p=catPending(CATS[st.step-S_CAT0]);
+  if(p.length) return fail("Falta precio o marcar «No lo encontré»: "+p.map(i=>i.name).join(", ")); }
+ if(st.step===S_SUM){ if(CATS.some(c=>catPending(c).length)) return fail("Hay productos pendientes. Vuelvan atrás para completarlos."); }
+ if(st.step===S_ANA){ if(st.ana.some(a=>a.trim().length<3)) return fail("Respondan las cuatro preguntas."); }
+ if(e) e.textContent=""; return true;
+}
+
+document.getElementById("back").onclick=()=>{ if(st.step>0){ st.step--; save(); render(); } };
+document.getElementById("next").onclick=async()=>{
+ if(!validate()) return;
+ if(st.step===S_ANA) return submit();
+ st.step++; save(); render();
+};
+
+function payload(){
+ const g=st.group;
+ return {action:"saveBasket",submissionId:st.id,clientTime:new Date().toISOString(),group:g,
+  items:CATS.flatMap(c=>c.items.map(it=>({id:it.id,category:c.name,name:it.name,qty:it.qty,unit:it.unit,missing:!!st.missing[it.id],price:st.missing[it.id]?null:num(st.prices[it.id])}))),
+  replacements:st.repl.filter(r=>r.o.trim()||r.r.trim()||r.p.trim()).map(r=>({original:r.o,replacement:r.r,price:num(r.p)})),
+  analysis:st.ana,
+  totals:{person:total(),family:total()*4}};
+}
+
+async function submit(){
+ const btn=document.getElementById("next");
+ if(!API_URL){ toast("Falta configurar API_URL en index.html.",true); return; }
+ btn.disabled=true; btn.textContent="Enviando…";
+ try{
+  // text/plain evita el preflight CORS que Apps Script no soporta.
+  const res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload())});
+  let data; try{ data=await res.json(); }catch(_){ throw new Error("Respuesta inválida del servidor. ¿La implementación está actualizada?"); }
+  if(!data.ok) throw new Error(data.error||"El servidor rechazó el envío.");
+  st.step=S_DONE; st.sent=true; save(); render(); toast("Respuestas guardadas.");
+ }catch(err){
+  toast("No se pudo enviar: "+err.message+" Su avance sigue guardado; reintenten.",true);
+  btn.disabled=false; btn.textContent="Enviar respuestas";
+ }
+}
+window.addEventListener("unhandledrejection",e=>toast("Error inesperado: "+(e.reason&&e.reason.message||e.reason),true));
+render();
+</script>
+</body>
+</html>
