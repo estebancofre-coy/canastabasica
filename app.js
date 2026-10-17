@@ -106,7 +106,10 @@ async function api(payload) {
   let result;
   try { result = await response.json(); }
   catch (_) { throw new Error("Respuesta inválida del servidor. Revisa que Apps Script esté actualizado."); }
-  if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo guardar la visita.");
+  if (!response.ok || !result.ok) {
+    if (result.error === "Acción no válida.") throw new Error("Apps Script aún no tiene la API de visitas compartidas. Actualiza Code.gs y despliega una versión nueva.");
+    throw new Error(result.error || "No se pudo guardar la visita.");
+  }
   return result;
 }
 
